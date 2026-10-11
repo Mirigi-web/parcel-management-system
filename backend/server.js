@@ -1113,6 +1113,171 @@ app.get("/api/my-parcels", authMiddleware, async (req, res) => {
   }
 });
 
+/* =========================================
+   CUSTOMER M-PESA STK PUSH PAYMENT
+========================================= */
+
+app.post(
+  "/api/payments/stk-push",
+  authMiddleware,
+  async (req, res) => {
+    let paymentId = null;
+
+    try {
+      // Only logged-in customers can pay for their own parcels.
+      if (req.user.role !== "customer") {
+        return res.status(403).json({
+          message: "Only customers can initiate parcel payments."
+        });
+      }
+
+      const { trackingNumber, phoneNumber } = req.body;
+
+      if (!trackingNumber || !phoneNumber) {
+        return res.status(400).json({
+          message: "Tracking number and phone number are required."
+        });
+      }
+
+      // Normalize Kenyan mobile numbers to 254XXXXXXXXX.
+      let phone = String(phoneNumber).replace(/[\s+-]/g, "");
+
+      if (phone.startsWith("0")) {
+        phone = "254" + phone.slice(1);
+      } else if (phone.startsWith("7") || phone.startsWith("1")) {
+        phone = "254" + phone;
+      }
+
+      if (!/^254[17]\d{8}$/.test(phone)) {
+        return res.status(400).json({
+          message: "Enter a valid Kenyan mobile number."
+        });
+      }
+
+      // Get the parcel from the database and verify ownership.
+      const parcelResult = await pool.query(
+        `SELECT id, tracking_number, sender_id, delivery_fee, status
+         FROM parcels
+         WHERE tracking_number = $1
+           AND sender_id = $2`,
+        [String(trackingNumber).trim(), req.user.id]
+      );
+
+      if (parcelResult.rows.length === 0) {
+        return res.status(404).json({
+          message: "Parcel not found in your account."
+        });
+      }
+
+      const parcel = parcelResult.rows[0];
+      const amount = Math.round(Number(parcel.delivery_fee));
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({
+          message: "This parcel has an invalid payment amount."
+        });
+      }
+
+      // Do not initiate another payment if this parcel is already paid.
+      const paidResult = await pool.query(
+        `SELECT id
+         FROM payments
+         WHERE parcel_id = $1
+           AND LOWER(status) = 'paid'
+         LIMIT 1`,
+        [parcel.id]
+      );
+
+      if (paidResult.rows.length > 0) {
+        return res.status(409).json({
+          message: "This parcel is already marked as paid."
+        });
+      }
+
+      const callbackUrl = process.env.DARAJA_CALLBACK_URL;
+
+      if (!callbackUrl) {
+        return res.status(503).json({
+          message:
+            "M-Pesa callback URL is not configured yet. No payment was initiated."
+        });
+      }
+
+      // Save the pending payment before requesting STK Push.
+      const paymentResult = await pool.query(
+        `INSERT INTO payments
+           (parcel_id, amount, payment_method, status,
+            paid_at, phone_number, created_at)
+         VALUES ($1, $2, $3, $4, NULL, $5, CURRENT_TIMESTAMP)
+         RETURNING id`,
+        [
+          parcel.id,
+          amount,
+          "M-Pesa STK Push",
+          "pending",
+          phone
+        ]
+      );
+
+      paymentId = paymentResult.rows[0].id;
+
+      // Ask Safaricom to send the payment prompt.
+      const stkResult = await initiateStkPush({
+        phoneNumber: phone,
+        amount,
+        trackingNumber: parcel.tracking_number,
+        callbackUrl
+      });
+
+      // Store Safaricom's identifiers for callback matching.
+      await pool.query(
+        `UPDATE payments
+         SET checkout_request_id = $1,
+             merchant_request_id = $2
+         WHERE id = $3`,
+        [
+          stkResult.CheckoutRequestID,
+          stkResult.MerchantRequestID,
+          paymentId
+        ]
+      );
+
+      return res.status(200).json({
+        message:
+          "STK Push requested. Complete the prompt on your phone.",
+        paymentId,
+        trackingNumber: parcel.tracking_number,
+        amount,
+        checkoutRequestId: stkResult.CheckoutRequestID
+      });
+    } catch (error) {
+      console.error("STK Push error:", error.message);
+
+      if (paymentId !== null) {
+        try {
+          await pool.query(
+            `UPDATE payments
+             SET status = 'failed'
+             WHERE id = $1
+               AND LOWER(status) = 'pending'`,
+            [paymentId]
+          );
+        } catch (updateError) {
+          console.error(
+            "Could not update payment status:",
+            updateError.message
+          );
+        }
+      }
+
+      return res.status(500).json({
+        message:
+          "Unable to initiate M-Pesa payment. Check the backend terminal."
+      });
+    }
+  }
+);
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
