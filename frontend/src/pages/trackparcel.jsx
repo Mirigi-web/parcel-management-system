@@ -50,6 +50,7 @@ function TrackParcel() {
 
 
   const [trackingNumber, setTrackingNumber] = useState("");
+  const [customerName, setCustomerName] = useState("");
 
   const [parcel, setParcel] = useState(null);
 
@@ -65,7 +66,7 @@ function TrackParcel() {
 
 
 
-    if (!trackingNumber.trim() || loading) return;
+    if (!trackingNumber.trim() || !customerName.trim() || loading) return;
 
 
 
@@ -85,7 +86,7 @@ function TrackParcel() {
 
           trackingNumber.trim()
 
-        )}`
+        )}?name=${encodeURIComponent(customerName.trim())}`
 
       );
 
@@ -683,11 +684,11 @@ function TrackParcel() {
 
             }}
 
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/")}
 
           >
 
-            ← Customer Dashboard
+            ← Sign In
 
           </button>
 
@@ -701,13 +702,16 @@ function TrackParcel() {
 
           <p style={{ ...styles.subtitle, marginBottom: "22px" }}>
 
-            Enter the tracking number provided when your parcel was registered.
+            Enter your name and the tracking number provided when the parcel was registered.
 
           </p>
 
 
 
           <form onSubmit={handleTrack}>
+
+            <label htmlFor="customerName" style={styles.label}>Your Full Name (sender or recipient)</label>
+            <input id="customerName" type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Enter the name used when registering the parcel" style={{ ...styles.input, marginBottom: 14 }} required />
 
             <label htmlFor="trackingNumber" style={styles.label}>
 

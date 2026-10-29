@@ -1,5 +1,5 @@
-
 import { useEffect, useState } from "react";
+import API_BASE_URL from "../api";
 
 function StaffDashboard() {
   const [user] = useState(() => {
@@ -36,7 +36,7 @@ function StaffDashboard() {
 
       try {
         const response = await fetch(
-          "http://localhost:5000/api/staff/parcel-summary",
+          `${API_BASE_URL}/api/staff/parcel-summary`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

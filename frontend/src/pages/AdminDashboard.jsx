@@ -54,7 +54,10 @@ const navigation = [
 
   { label: "Notifications", icon: "🔔", action: "notifications" },
 
-  { label: "Audit Logs", icon: "☷", action: "audit" },
+  { label: "System Logs", icon: "☷", action: "logs" },
+  { label: "Fleet Management", icon: "🚚", action: "fleet" },
+  { label: "Bulk Messages", icon: "✉️", action: "bulk" },
+  { label: "Financial Management", icon: "💰", action: "finance" },
 
 ];
 
