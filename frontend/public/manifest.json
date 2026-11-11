@@ -1,0 +1,15 @@
+{
+  "short_name": "ParcelTrack",
+  "name": "Parcel Management",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#243b80"
+}

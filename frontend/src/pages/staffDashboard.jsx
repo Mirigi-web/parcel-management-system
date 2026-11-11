@@ -100,6 +100,13 @@ function StaffDashboard() {
       path: "/update-parcel-status",
       icon: "🚚",
     },
+    // 🔥 NEW: Collect Payment Action
+    {
+      title: "Collect Payment",
+      description: "Prompt M-Pesa for a customer picking up.",
+      path: "/collect-payment",
+      icon: "💳",
+    },
   ];
 
   const stats = [
